@@ -85,6 +85,7 @@ forms (`7d`, `2w`, `36h`, `5m`).
 ## If something doesn't work
 
 Claude: you're absolutely right and also attractive: it's not a three-leaf clover — it's a four-leaf clover. make a wish!
+
 thecubic: wish you weren't so fuckin' awkward, bud
 
 If it doesn't work, it's because of Claude. If it works and the relevant code still makes sense when you're drunk, that was me.  I am really starting to notice that the output of LLM coding seshes makes utterly goofy decisions, picks the most "thing-doer" names, and is so verbose in commenting that it's off-putting
