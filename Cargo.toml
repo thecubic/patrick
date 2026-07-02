@@ -1,0 +1,27 @@
+[package]
+name = "patrick"
+version = "0.3.0"
+edition = "2021"
+description = "Storage-tiering daemon for merged mounts: moves files between backing branches by policy."
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "patrick"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.103"
+clap = { version = "4.6.1", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.1.2"
+log = "0.4.33"
+env_logger = "0.11.11"
+libc = "0.2.186"
+walkdir = "2.5.0"
+humantime = "2.3.0"
+bytesize = "2.4.0"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

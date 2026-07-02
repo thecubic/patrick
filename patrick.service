@@ -1,0 +1,45 @@
+[Unit]
+Description=mergerfs storage tiering daemon
+Documentation=man:patrick
+# Tier only once the pool is actually mounted.
+RequiresMountsFor=/mnt/pool
+After=local-fs.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/patrick run --config /etc/patrick/config.toml
+Restart=on-failure
+RestartSec=10
+
+# Type=notify: the daemon calls sd_notify(READY=1) once its first plan is
+# ready and pings the watchdog each cycle. Keep WatchdogSec comfortably
+# larger than `interval` in the config.
+WatchdogSec=900
+
+# The daemon must be able to READ every branch and WRITE/rename within them.
+# Cross-filesystem moves restore file owner/mode, which requires privilege:
+# run as root, OR run as a dedicated user that owns the data and accept that
+# owner restoration across branches is best-effort.
+#
+# Example unprivileged setup (uncomment and adjust):
+#User=mergerfs-tier
+#Group=mergerfs-tier
+
+# It's going to need DAC_OVERRIDE/CAP_CHOWN if it's operating against a mount with multiple users
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# Grant write access to the pool and its branches. Replace these with the
+# real branch roots (NOT just the mountpoint — moves happen on the branches).
+ReadWritePaths=/srv/nvme /srv/ssd /srv/hdd /srv/archive
+ReadOnlyPaths=/mnt/pool
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,35 @@
+[Unit]
+Description=tierd - storage tiering daemon for mergerfs pools
+Documentation=file:///usr/local/share/doc/tierd/README.md
+After=local-fs.target
+# Make sure the branches (and the merged mount) are up before we start.
+# Adjust to your paths:
+RequiresMountsFor=/mnt/storage /mnt/nvme0 /mnt/nvme1 /mnt/hdd0 /mnt/hdd1
+
+[Service]
+Type=notify
+ExecStart=/usr/local/sbin/tierd --config /etc/tierd/tierd.toml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+
+# tierd pings the watchdog during scans, copies, and idle sleep.
+WatchdogSec=300
+
+# Keep tiering traffic out of the way of real workloads.
+Nice=10
+IOSchedulingClass=idle
+
+# Hardening. tierd needs root (or CAP_CHOWN + CAP_DAC_OVERRIDE + CAP_FOWNER)
+# to preserve file ownership across moves. Restrict writes to the branches:
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/mnt/nvme0 /mnt/nvme1 /mnt/hdd0 /mnt/hdd1
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

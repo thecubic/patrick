@@ -1,0 +1,78 @@
+# /etc/tierd/tierd.toml — tierd configuration
+#
+# tierd works on the mergerfs *branches*, never through the merged mount.
+# Because every file keeps its path relative to its branch root, the merged
+# view is completely unchanged by any move tierd makes.
+
+# The mergerfs mountpoint (informational; used for sanity checks/logging).
+mount = "/mnt/storage"
+
+# How often to run a tiering pass.
+scan_interval = "15m"
+
+# Never touch files modified more recently than this (likely still open).
+mtime_cooldown = "5m"
+
+# Optional: cap copy throughput so tiering doesn't starve real I/O.
+# throttle = "80M"            # bytes/sec
+
+# Optional: cap total data moved per pass.
+# max_move_per_pass = "500G"
+
+# Always leave at least this much free on any destination branch.
+min_free = "1G"
+
+# File-temperature policy: which files are "cold" and demoted first.
+#   atime       least recently accessed first (default; needs atime/relatime)
+#   mtime       least recently modified first (use if branches mount noatime)
+#   atime-size  like atime but prefers demoting large files on ties
+[policy]
+name = "atime"
+
+# ---------------------------------------------------------------------------
+# Tiers, fastest first. Each tier is one or more mergerfs branches.
+# Watermarks: when a tier's usage exceeds high_watermark %, the coldest
+# eligible files are demoted to the next tier until usage drops below
+# low_watermark %.
+# ---------------------------------------------------------------------------
+
+[[tier]]
+name = "fast"
+branches = ["/mnt/nvme0", "/mnt/nvme1"]
+high_watermark = 85
+low_watermark = 70
+
+[[tier]]
+name = "slow"
+branches = ["/mnt/hdd0", "/mnt/hdd1", "/mnt/hdd2"]
+# Watermarks on the last tier are ignored — there is nowhere lower to go.
+
+# ---------------------------------------------------------------------------
+# Per-subtree rules. Paths are inside the merged view. The deepest matching
+# rule wins (longest-prefix match).
+# ---------------------------------------------------------------------------
+
+# Push completed media down as soon as the cooldown allows, regardless of
+# how full the fast tier is.
+[[rule]]
+path = "/media/movies"
+mode = "aggressive"
+# target = "slow"            # optional; defaults to the slowest tier
+
+# Working set: anything accessed in the last two weeks stays on (and is
+# promoted back to) the fast tier; older files may be demoted under pressure.
+[[rule]]
+path = "/projects"
+keep_at_least = "14d"
+
+# Downloads may occupy at most 200 GiB on the fast tier(s); overflow is
+# demoted coldest-first.
+[[rule]]
+path = "/downloads"
+quota = "200G"
+
+# Databases must always live on fast storage; tierd will pull strays up and
+# never demote them.
+[[rule]]
+path = "/appdata/databases"
+pin = "fast"

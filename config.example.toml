@@ -1,0 +1,100 @@
+# patrick example configuration
+#
+# Tiering moves files between the underlying branches of a mergerfs pool.
+# Tier 0 is the FASTEST storage; higher tier numbers are slower. "Demoting"
+# a file means moving it to a higher-numbered tier.
+#
+# The branches themselves and minfreespace are detected from the running
+# mergerfs process / runtime xattrs (see `patrick detect --mount <p>`),
+# so you do NOT list branches here. You only describe tiers and rules.
+
+# The mountpoint to manage. May be overridden with `--mount`.
+mount = "/mnt/pool"
+
+# How often to run a tiering cycle.
+interval = "5m"
+
+# Pluggable policy. Only "access_time" ships today.
+policy = "access_time"
+
+# Optional ceiling on how many bytes a single cycle may move. Prevents a
+# cold-start cycle from saturating disks. Omit for "no limit".
+max_move_bytes_per_cycle = "50G"
+
+# Files whose mtime is younger than this are treated as in-use and never
+# moved, regardless of rules. Protects actively-written files.
+settle = "10m"
+
+# Set true to log the plan without moving anything (same as `--dry-run`).
+dry_run = false
+
+# Glob patterns (relative to the pool root, no leading slash) to skip entirely.
+exclude = ["**/*.partial", "downloads/incomplete/**"]
+
+# ---------------------------------------------------------------------------
+# Tiers: assign branches to speed tiers. Branch paths are matched by prefix,
+# and `*` globs are supported. A branch matching no tier sinks below all
+# listed tiers. If you define no [[tier]] blocks at all, branches are tiered
+# in the order mergerfs reports them.
+# ---------------------------------------------------------------------------
+
+[[tier]]
+level = 0
+label = "nvme"
+paths = ["/srv/nvme/*"]
+
+[[tier]]
+level = 1
+label = "ssd"
+paths = ["/srv/ssd/*"]
+
+[[tier]]
+level = 2
+label = "hdd"
+paths = ["/srv/hdd/*", "/srv/archive/*"]
+
+# ---------------------------------------------------------------------------
+# Rules.
+#
+# CHANGE #2: subtree paths are RELATIVE to the pool root and must NOT begin
+# with "/". The old catch-all "/" rule is now the rule with NO `path` key —
+# the "default rule". Exactly one default rule is allowed. Subtree rules
+# inherit min_age / max_age / target_tier / dispatch_sort from the default
+# rule when they don't set their own.
+# ---------------------------------------------------------------------------
+
+# The default rule (formerly "/"). Applies to everything not matched by a
+# more specific subtree rule. Here: keep anything touched in the last 7 days
+# on fast storage, and default all dispatch ordering to oldest-access-first.
+[[rule]]
+min_age = "7d"
+dispatch_sort = "ascending_access"
+
+# "Keep at least two weeks": media stays hot for 14 days before it may sink.
+[[rule]]
+path = "media/tv"
+min_age = "2w"
+
+# CHANGE #3: dispatch sorting. This subtree is capped at 200G of tier-0/1
+# space; when over quota, evict LARGEST files first so the quota clears in
+# the fewest moves. quota_max_tier = 1 means only bytes on tiers 0 and 1
+# count toward the 200G.
+[[rule]]
+path = "media/linuxisos"
+quota = "200G"
+quota_max_tier = 1
+dispatch_sort = "descending_size"
+
+# Aggressively push a scratch area down: ignore age, demote straight to the
+# slowest tier every cycle. Higher priority so it wins over the default rule.
+[[rule]]
+path = "scratch"
+aggressive = true
+target_tier = 2
+priority = 10
+
+# Pin a directory to fast storage — never demoted, never counted against a
+# parent quota's eviction.
+[[rule]]
+path = "memes"
+pin = true
